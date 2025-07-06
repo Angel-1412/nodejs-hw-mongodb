@@ -7,14 +7,52 @@ import {
   deleteContactById,
 } from '../services/contacts.js';
 
-export async function getContactsController(req, res, next) {
-  const data = await getAllContacts();
+export const getContactsController = async (req, res) => {
+  const {
+    page = 1,
+    perPage = 10,
+    sortBy = 'name',
+    sortOrder = 'asc',
+    type,
+    isFavourite,
+  } = req.query;
+
+  const pageNum = parseInt(page);
+  const perPageNum = parseInt(perPage);
+  const sortDirection = sortOrder === 'desc' ? -1 : 1;
+
+  if (isNaN(pageNum) || isNaN(perPageNum) || pageNum < 1 || perPageNum < 1) {
+    throw createError(
+      400,
+      'Query parameters "page" and "perPage" must be positive numbers',
+    );
+  }
+
+  const { contacts, totalItems } = await getAllContacts(
+    pageNum,
+    perPageNum,
+    sortBy,
+    sortDirection,
+    type,
+    isFavourite,
+  );
+
+  const totalPages = Math.ceil(totalItems / perPageNum);
+
   res.status(200).json({
     status: 200,
     message: 'Successfully found contacts!',
-    data,
+    data: {
+      contacts,
+      page: pageNum,
+      perPage: perPageNum,
+      totalItems,
+      totalPages,
+      hasPreviousPage: pageNum > 1,
+      hasNextPage: pageNum < totalPages,
+    },
   });
-}
+};
 
 export async function getContactByIdController(req, res, next) {
   const { contactId } = req.params;
