@@ -39,11 +39,16 @@ export const getContactsController = async (req, res) => {
 
   const totalPages = Math.ceil(totalItems / perPageNum);
 
+  const normalizedContacts = contacts.map(({ _id, ...rest }) => ({
+    id: _id,
+    ...rest,
+  }));
+
   res.status(200).json({
     status: 200,
     message: 'Successfully found contacts!',
     data: {
-      contacts,
+      contacts: normalizedContacts,
       page: pageNum,
       perPage: perPageNum,
       totalItems,

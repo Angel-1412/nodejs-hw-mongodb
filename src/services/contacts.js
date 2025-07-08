@@ -21,7 +21,7 @@ export async function getAllContacts(
   }
 
   const [contacts, totalItems] = await Promise.all([
-    Contact.find(filter).sort(sortOptions).skip(skip).limit(perPage),
+    Contact.find(filter).sort(sortOptions).skip(skip).limit(perPage).lean(), // ← додано .lean()
     Contact.countDocuments(filter),
   ]);
 
