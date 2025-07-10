@@ -48,7 +48,7 @@ export const getContactsController = async (req, res) => {
     status: 200,
     message: 'Successfully found contacts!',
     data: {
-      contacts: normalizedContacts,
+      data: normalizedContacts,
       page: pageNum,
       perPage: perPageNum,
       totalItems,
