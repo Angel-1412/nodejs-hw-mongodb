@@ -4,6 +4,8 @@ import pino from 'pino-http';
 import contactsRouter from './routers/contacts.js';
 import { notFoundHandler } from './middlewares/notFoundHandler.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import authRouter from './routers/auth.js';
+import cookieParser from 'cookie-parser';
 
 export function setupServer() {
   const app = express();
@@ -12,6 +14,8 @@ export function setupServer() {
   app.use(pino());
   app.use(express.json());
 
+  app.use(cookieParser());
+  app.use('/api/auth', authRouter);
   app.use('/contacts', contactsRouter);
 
   app.get('/', (req, res) => {
