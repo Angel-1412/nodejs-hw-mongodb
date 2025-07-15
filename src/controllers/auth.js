@@ -7,10 +7,12 @@ import createError from 'http-errors';
 export const registerController = async (req, res) => {
   const user = await registerUser(req.body);
 
+  const { password, ...safeUser } = user.toObject();
+
   res.status(201).json({
     status: 201,
     message: 'Successfully registered a user!',
-    data: user,
+    data: safeUser, 
   });
 };
 
@@ -20,13 +22,19 @@ export const loginController = async (req, res) => {
 
     const { accessToken, refreshToken } = await loginUser({ email, password });
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/api/auth/refresh',
-    });
+    res
+      .cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000, 
+      })
+      .cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000, 
+      });
 
     res.status(200).json({
       status: 200,
@@ -52,13 +60,19 @@ export const refreshSession = async (req, res, next) => {
 
     const { accessToken, newRefreshToken } = await refresh(refreshToken);
 
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/api/auth/refresh',
-    });
+    res
+      .cookie('refreshToken', newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      })
+      .cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+      });
 
     res.status(200).json({
       status: 'success',
@@ -71,6 +85,7 @@ export const refreshSession = async (req, res, next) => {
       error.name === 'JsonWebTokenError'
     ) {
       res.clearCookie('refreshToken');
+      res.clearCookie('accessToken');
     }
     next(error);
   }
@@ -80,6 +95,7 @@ export const logoutController = async (req, res, next) => {
   try {
     await logout(req.cookies.refreshToken);
     res.clearCookie('refreshToken');
+    res.clearCookie('accessToken');
     res.status(204).end();
   } catch (error) {
     next(error);
