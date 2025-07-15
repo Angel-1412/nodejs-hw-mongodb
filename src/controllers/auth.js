@@ -58,7 +58,7 @@ export const refreshSession = async (req, res, next) => {
       throw createError(401, 'Refresh token is missing');
     }
 
-    const { accessToken, newRefreshToken } = await refresh(refreshToken);
+    const { accessToken, refreshToken: newRefreshToken } = await refresh(refreshToken);
 
     res
       .cookie('refreshToken', newRefreshToken, {
