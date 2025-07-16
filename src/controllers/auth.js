@@ -78,9 +78,29 @@ export const refreshSession = async (req, res, next) => {
 
 export const logoutController = async (req, res, next) => {
   try {
-    await logout(req.cookies.refreshToken);
-    res.clearCookie('refreshToken');
-    res.status(204).end();
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is missing' });
+    }
+
+    await logout(refreshToken);
+
+    res
+      .clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      })
+      .clearCookie('accessToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+      })
+      .status(204)
+      .end();
   } catch (error) {
     next(error);
   }
