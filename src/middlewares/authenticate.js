@@ -28,7 +28,12 @@ export const authenticate = async (req, res, next) => {
 
     const session = await Session.findOne({ userId, accessToken: token });
     if (!session) {
-      throw createHttpError(401, 'Session expired or not found');
+      throw createHttpError(401, 'Not authorized');
+    }
+
+    if (session.accessTokenValidUntil < new Date()) {
+      await Session.deleteOne({ _id: session._id });
+      throw createHttpError(401, 'Access token expired');
     }
 
     req.user = user;
