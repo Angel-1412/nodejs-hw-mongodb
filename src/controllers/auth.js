@@ -1,12 +1,20 @@
-import { registerUser } from '../services/auth.js';
-import { loginUser } from '../services/auth.js';
-import { refresh } from '../services/auth.js';
-import { logout } from '../services/auth.js';
 import createError from 'http-errors';
+import {
+  registerUser,
+  loginUser,
+  refresh,
+  logout as logoutService,
+} from '../services/auth.js';
+
+const cookieOpts = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'None',
+  path: '/',
+};
 
 export const registerController = async (req, res) => {
   const user = await registerUser(req.body);
-
   const { password, ...safeUser } = user;
 
   res.status(201).json({
@@ -19,28 +27,23 @@ export const registerController = async (req, res) => {
 export const loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const { accessToken, refreshToken } = await loginUser({ email, password });
 
     res
       .cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOpts,
         maxAge: 30 * 24 * 60 * 60 * 1000,
       })
       .cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOpts,
         maxAge: 15 * 60 * 1000,
+      })
+      .status(200)
+      .json({
+        status: 200,
+        message: 'Successfully logged in!',
+        data: null,
       });
-
-    res.status(200).json({
-      status: 200,
-      message: 'Successfully logged in!',
-      data: { accessToken },
-    });
   } catch (error) {
     res.status(401).json({
       status: 401,
@@ -53,10 +56,7 @@ export const loginController = async (req, res) => {
 export const refreshSession = async (req, res, next) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-
-    if (!refreshToken) {
-      throw createError(401, 'Refresh token is missing');
-    }
+    if (!refreshToken) throw createError(401, 'Refresh token is missing');
 
     const { accessToken, refreshToken: newRefreshToken } = await refresh(
       refreshToken,
@@ -64,61 +64,42 @@ export const refreshSession = async (req, res, next) => {
 
     res
       .cookie('refreshToken', newRefreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOpts,
         maxAge: 30 * 24 * 60 * 60 * 1000,
       })
       .cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        ...cookieOpts,
         maxAge: 15 * 60 * 1000,
+      })
+      .status(200)
+      .json({
+        status: 200,
+        message: 'Session refreshed!',
+        data: null,
       });
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Session refreshed!',
-      data: { accessToken },
-    });
   } catch (error) {
-    if (
-      error.name === 'TokenExpiredError' ||
-      error.name === 'JsonWebTokenError'
-    ) {
-      res.clearCookie('refreshToken');
-      res.clearCookie('accessToken');
-    }
+    res.clearCookie('refreshToken', cookieOpts);
+    res.clearCookie('accessToken', cookieOpts);
     next(error);
   }
 };
 
 export const logoutController = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
+    const refreshToken = req.cookies.refreshToken || null;
 
-    if (!refreshToken) {
-      return res.status(400).json({ message: 'Refresh token is missing' });
+    if (refreshToken) {
+      await logoutService(refreshToken);
     }
 
-    await logout(refreshToken);
-
     res
-      .clearCookie('refreshToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .clearCookie('accessToken', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 15 * 60 * 1000,
-      })
+      .clearCookie('refreshToken', cookieOpts)
+      .clearCookie('accessToken', cookieOpts)
       .status(204)
       .end();
   } catch (error) {
+    res.clearCookie('refreshToken', cookieOpts);
+    res.clearCookie('accessToken', cookieOpts);
     next(error);
   }
 };

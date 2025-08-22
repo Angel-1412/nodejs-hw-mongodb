@@ -1,50 +1,32 @@
 import jwt from 'jsonwebtoken';
-import createHttpError from 'http-errors';
-import { User } from '../models/userModel.js';
+import createError from 'http-errors';
 import { Session } from '../models/sessionModel.js';
 
-const ACCESS_SECRET = process.env.ACCESS_SECRET || 'accessSecret123';
+const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'accessSecret123';
 
 export const authenticate = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const accessFromCookie = req.cookies?.accessToken;
 
-    if (!authHeader) {
-      throw createHttpError(401, 'Not authorized');
-    }
+    const authHeader = req.headers.authorization || '';
+    const bearer = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : null;
 
-    const [bearer, token] = authHeader.split(' ');
+    const token = accessFromCookie || bearer;
+    if (!token) throw createError(401, 'Not authorized');
 
-    if (bearer !== 'Bearer' || !token) {
-      throw createHttpError(401, 'Not authorized');
-    }
+    const payload = jwt.verify(token, ACCESS_SECRET);
 
-    const { userId } = jwt.verify(token, ACCESS_SECRET);
+    const session = await Session.findOne({
+      userId: payload.userId,
+      accessToken: token,
+    });
+    if (!session) throw createError(401, 'Not authorized');
 
-    const user = await User.findById(userId);
-    if (!user) {
-      throw createHttpError(401, 'Not authorized');
-    }
-
-    const session = await Session.findOne({ userId, accessToken: token });
-    if (!session) {
-      throw createHttpError(401, 'Not authorized');
-    }
-
-    if (session.accessTokenValidUntil < new Date()) {
-      await Session.deleteOne({ _id: session._id });
-      throw createHttpError(401, 'Access token expired');
-    }
-
-    req.user = user;
+    req.user = { _id: payload.userId };
     next();
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      next(createHttpError(401, 'Access token expired'));
-    } else if (error.name === 'JsonWebTokenError') {
-      next(createHttpError(401, 'Invalid access token'));
-    } else {
-      next(error);
-    }
+  } catch (err) {
+    next(createError(401, 'Not authorized'));
   }
 };

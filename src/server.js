@@ -10,11 +10,17 @@ import cookieParser from 'cookie-parser';
 export function setupServer() {
   const app = express();
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin: process.env.CLIENT_ORIGIN?.split(',') || true,
+      credentials: true,
+    }),
+  );
+
   app.use(pino());
   app.use(express.json());
-
   app.use(cookieParser());
+
   app.use('/auth', authRouter);
   app.use('/contacts', contactsRouter);
 
@@ -23,7 +29,6 @@ export function setupServer() {
   });
 
   app.use(notFoundHandler);
-
   app.use(errorHandler);
 
   const PORT = process.env.PORT || 3000;
