@@ -3,6 +3,7 @@ import createError from 'http-errors';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/userModel.js';
 import { Session } from '../models/sessionModel.js';
+import mongoose from 'mongoose';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'accessSecret123';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refreshSecret456';
@@ -31,51 +32,60 @@ export async function loginUser({ email, password }) {
     jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES }),
   ]);
 
-  await Session.findOneAndUpdate(
-    { userId: user._id },
-    {
-      accessToken,
-      refreshToken,
-      accessTokenValidUntil: new Date(Date.now() + 15 * 60 * 1000),
-      refreshTokenValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    },
-    { upsert: true, new: true },
-  );
+  const session = await Session.create({
+    userId: user._id,
+    accessToken,
+    refreshToken,
+    accessTokenValidUntil: new Date(Date.now() + 15 * 60 * 1000),
+    refreshTokenValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
 
-  return { accessToken, refreshToken };
+  return {
+    accessToken,
+    sessionId: session._id.toString(),
+  };
 }
 
-export async function refresh(refreshToken) {
-  if (!refreshToken) throw createError(401, 'Refresh token required');
+export async function refresh(sessionId) {
+  if (!sessionId) throw createError(401, 'Session ID required');
 
-  const { userId } = jwt.verify(refreshToken, REFRESH_SECRET);
-  const session = await Session.findOne({ userId, refreshToken });
+  const session = await Session.findById(sessionId);
   if (!session || session.refreshTokenValidUntil < new Date()) {
-    await Session.deleteOne({ userId });
-    throw createError(401, 'Invalid or expired refresh token');
+    await Session.findByIdAndDelete(sessionId);
+    throw createError(401, 'Invalid or expired session');
   }
 
-  const payload = { userId };
+  try {
+    jwt.verify(session.refreshToken, REFRESH_SECRET);
+  } catch (error) {
+    await Session.findByIdAndDelete(sessionId);
+    throw createError(401, 'Invalid refresh token');
+  }
+
+  const payload = { userId: session.userId };
   const [newAccessToken, newRefreshToken] = await Promise.all([
     jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES }),
     jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES }),
   ]);
 
-  await Session.findOneAndUpdate(
-    { userId },
+  const updatedSession = await Session.findByIdAndUpdate(
+    sessionId,
     {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       accessTokenValidUntil: new Date(Date.now() + 15 * 60 * 1000),
       refreshTokenValidUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
+    { new: true },
   );
 
-  return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  return {
+    accessToken: newAccessToken,
+    newSessionId: updatedSession._id.toString(),
+  };
 }
 
-export async function logout(refreshToken) {
-  if (!refreshToken) return;
-
-  await Session.deleteOne({ refreshToken });
+export async function logout(sessionId) {
+  if (!sessionId) return;
+  await Session.findByIdAndDelete(sessionId);
 }

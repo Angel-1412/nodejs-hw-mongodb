@@ -6,14 +6,12 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'accessSecret123';
 
 export const authenticate = async (req, res, next) => {
   try {
-    const accessFromCookie = req.cookies?.accessToken;
-
     const authHeader = req.headers.authorization || '';
-    const bearer = authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7)
-      : null;
+    if (!authHeader.startsWith('Bearer ')) {
+      throw createError(401, 'Not authorized');
+    }
 
-    const token = accessFromCookie || bearer;
+    const token = authHeader.slice(7);
     if (!token) throw createError(401, 'Not authorized');
 
     const payload = jwt.verify(token, ACCESS_SECRET);
@@ -22,7 +20,10 @@ export const authenticate = async (req, res, next) => {
       userId: payload.userId,
       accessToken: token,
     });
-    if (!session) throw createError(401, 'Not authorized');
+
+    if (!session || session.accessTokenValidUntil < new Date()) {
+      throw createError(401, 'Not authorized');
+    }
 
     req.user = { _id: payload.userId };
     next();

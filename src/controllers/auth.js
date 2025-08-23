@@ -27,22 +27,18 @@ export const registerController = async (req, res) => {
 export const loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const { accessToken, refreshToken } = await loginUser({ email, password });
+    const { sessionId, accessToken } = await loginUser({ email, password });
 
     res
-      .cookie('refreshToken', refreshToken, {
+      .cookie('sessionId', sessionId, {
         ...cookieOpts,
         maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .cookie('accessToken', accessToken, {
-        ...cookieOpts,
-        maxAge: 15 * 60 * 1000,
       })
       .status(200)
       .json({
         status: 200,
         message: 'Successfully logged in!',
-        data: null,
+        data: { accessToken },
       });
   } catch (error) {
     res.status(401).json({
@@ -55,51 +51,39 @@ export const loginController = async (req, res) => {
 
 export const refreshSession = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) throw createError(401, 'Refresh token is missing');
+    const sessionId = req.cookies.sessionId;
+    if (!sessionId) throw createError(401, 'Session ID is missing');
 
-    const { accessToken, refreshToken: newRefreshToken } = await refresh(
-      refreshToken,
-    );
+    const { accessToken, newSessionId } = await refresh(sessionId);
 
     res
-      .cookie('refreshToken', newRefreshToken, {
+      .cookie('sessionId', newSessionId, {
         ...cookieOpts,
         maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .cookie('accessToken', accessToken, {
-        ...cookieOpts,
-        maxAge: 15 * 60 * 1000,
       })
       .status(200)
       .json({
         status: 200,
         message: 'Session refreshed!',
-        data: null,
+        data: { accessToken },
       });
   } catch (error) {
-    res.clearCookie('refreshToken', cookieOpts);
-    res.clearCookie('accessToken', cookieOpts);
+    res.clearCookie('sessionId', cookieOpts);
     next(error);
   }
 };
 
 export const logoutController = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies.refreshToken || null;
+    const sessionId = req.cookies.sessionId || null;
 
-    if (refreshToken) {
-      await logoutService(refreshToken);
+    if (sessionId) {
+      await logoutService(sessionId);
     }
 
-    res
-      .clearCookie('refreshToken', cookieOpts)
-      .clearCookie('accessToken', cookieOpts)
-      .status(204)
-      .end();
+    res.clearCookie('sessionId', cookieOpts).status(204).end();
   } catch (error) {
-    res.clearCookie('refreshToken', cookieOpts);
-    res.clearCookie('accessToken', cookieOpts);
+    res.clearCookie('sessionId', cookieOpts);
     next(error);
   }
 };
