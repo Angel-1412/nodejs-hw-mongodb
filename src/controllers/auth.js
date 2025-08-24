@@ -1,10 +1,7 @@
+import jwt from 'jsonwebtoken';
 import createError from 'http-errors';
-import {
-  registerUser,
-  loginUser,
-  refresh,
-  logout as logoutService,
-} from '../services/auth.js';
+import { registerUser, loginUser, logout } from '../services/auth.js';
+import { Session } from '../models/sessionModel.js';
 
 const cookieOpts = {
   httpOnly: true,
@@ -27,10 +24,17 @@ export const registerController = async (req, res) => {
 export const loginController = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const { sessionId, accessToken } = await loginUser({ email, password });
+    const { accessToken, refreshToken, sessionId } = await loginUser({
+      email,
+      password,
+    });
 
     res
-      .cookie('sessionId', sessionId, {
+      .cookie('refreshToken', refreshToken, {
+        ...cookieOpts,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      })
+      .cookie('sessionId', sessionId.toString(), {
         ...cookieOpts,
         maxAge: 30 * 24 * 60 * 60 * 1000,
       })
@@ -51,23 +55,32 @@ export const loginController = async (req, res) => {
 
 export const refreshSession = async (req, res, next) => {
   try {
-    const sessionId = req.cookies.sessionId;
-    if (!sessionId) throw createError(401, 'Session ID is missing');
+    const { refreshToken, sessionId } = req.cookies;
 
-    const { accessToken, newSessionId } = await refresh(sessionId);
+    if (!refreshToken || !sessionId) {
+      throw createError(401, 'Refresh token or session missing');
+    }
 
-    res
-      .cookie('sessionId', newSessionId, {
-        ...cookieOpts,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .status(200)
-      .json({
-        status: 200,
-        message: 'Session refreshed!',
-        data: { accessToken },
-      });
+    const session = await Session.findById(sessionId);
+    if (!session || session.refreshToken !== refreshToken) {
+      throw createError(401, 'Invalid refresh token');
+    }
+
+    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    const accessToken = jwt.sign(
+      { userId: session.userId.toString() },
+      process.env.JWT_ACCESS_SECRET,
+      { expiresIn: '15m' },
+    );
+
+    res.status(200).json({
+      status: 200,
+      message: 'Session refreshed!',
+      data: { accessToken },
+    });
   } catch (error) {
+    res.clearCookie('refreshToken', cookieOpts);
     res.clearCookie('sessionId', cookieOpts);
     next(error);
   }
@@ -75,14 +88,16 @@ export const refreshSession = async (req, res, next) => {
 
 export const logoutController = async (req, res, next) => {
   try {
-    const sessionId = req.cookies.sessionId || null;
+    const { sessionId } = req.cookies;
+    if (sessionId) await logout(sessionId);
 
-    if (sessionId) {
-      await logoutService(sessionId);
-    }
-
-    res.clearCookie('sessionId', cookieOpts).status(204).end();
+    res
+      .clearCookie('refreshToken', cookieOpts)
+      .clearCookie('sessionId', cookieOpts)
+      .status(204)
+      .end();
   } catch (error) {
+    res.clearCookie('refreshToken', cookieOpts);
     res.clearCookie('sessionId', cookieOpts);
     next(error);
   }

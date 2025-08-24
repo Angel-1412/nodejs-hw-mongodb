@@ -7,16 +7,8 @@ const sessionSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    accessToken: {
-      type: String,
-      required: true,
-    },
     refreshToken: {
       type: String,
-      required: true,
-    },
-    accessTokenValidUntil: {
-      type: Date,
       required: true,
     },
     refreshTokenValidUntil: {
@@ -24,9 +16,7 @@ const sessionSchema = new mongoose.Schema(
       required: true,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 export const Session = mongoose.model('Session', sessionSchema);

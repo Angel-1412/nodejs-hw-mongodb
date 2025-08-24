@@ -1,33 +1,35 @@
 import jwt from 'jsonwebtoken';
 import createError from 'http-errors';
-import { Session } from '../models/sessionModel.js';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'accessSecret123';
 
 export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || '';
+    console.log('Authorization header:', authHeader);
+
     if (!authHeader.startsWith('Bearer ')) {
+      console.log('No Bearer token found');
       throw createError(401, 'Not authorized');
     }
 
     const token = authHeader.slice(7);
-    if (!token) throw createError(401, 'Not authorized');
+    console.log('Token:', token);
 
-    const payload = jwt.verify(token, ACCESS_SECRET);
-
-    const session = await Session.findOne({
-      userId: payload.userId,
-      accessToken: token,
-    });
-
-    if (!session || session.accessTokenValidUntil < new Date()) {
+    if (!token) {
+      console.log('Empty token');
       throw createError(401, 'Not authorized');
     }
 
+    const payload = jwt.verify(token, ACCESS_SECRET);
+    console.log('Payload:', payload);
+
     req.user = { _id: payload.userId };
+    console.log('User set to:', req.user);
+
     next();
   } catch (err) {
+    console.log('Auth error:', err.message);
     next(createError(401, 'Not authorized'));
   }
 };

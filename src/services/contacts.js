@@ -1,4 +1,5 @@
 import { Contact } from '../models/contactModel.js';
+import mongoose from 'mongoose';
 
 export async function getAllContacts(
   userId,
@@ -11,7 +12,8 @@ export async function getAllContacts(
 ) {
   const skip = (page - 1) * perPage;
   const sortOptions = { [sortBy]: sortDirection };
-  const filter = { userId };
+
+  const filter = { userId: new mongoose.Types.ObjectId(userId.toString()) };
 
   if (type) {
     filter.contactType = type;
@@ -30,7 +32,10 @@ export async function getAllContacts(
 }
 
 export async function getContactById(contactId, userId) {
-  return Contact.findOne({ _id: contactId, userId });
+  return Contact.findOne({
+    _id: new mongoose.Types.ObjectId(contactId.toString()),
+    userId: new mongoose.Types.ObjectId(userId.toString()),
+  });
 }
 
 export async function createContact(contactData) {
@@ -38,11 +43,19 @@ export async function createContact(contactData) {
 }
 
 export async function updateContactById(contactId, userId, updateData) {
-  return Contact.findOneAndUpdate({ _id: contactId, userId }, updateData, {
-    new: true,
-  });
+  return Contact.findOneAndUpdate(
+    {
+      _id: new mongoose.Types.ObjectId(contactId.toString()),
+      userId: new mongoose.Types.ObjectId(userId.toString()),
+    },
+    updateData,
+    { new: true },
+  );
 }
 
 export async function deleteContactById(contactId, userId) {
-  return Contact.findOneAndDelete({ _id: contactId, userId });
+  return Contact.findOneAndDelete({
+    _id: new mongoose.Types.ObjectId(contactId.toString()),
+    userId: new mongoose.Types.ObjectId(userId.toString()),
+  });
 }
