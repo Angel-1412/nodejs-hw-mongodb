@@ -21,7 +21,7 @@ export const loginUser = async ({ email, password }) => {
   if (!isPasswordValid) throw createError(401, 'Invalid credentials');
 
   const accessToken = jwt.sign(
-    { userId: user._id.toString() },
+    { userId: user._id.toString(), sessionId: null },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: '15m' },
   );
@@ -42,9 +42,42 @@ export const loginUser = async ({ email, password }) => {
     refreshTokenValidUntil,
   });
 
-  return { accessToken, refreshToken, sessionId: session._id };
+  const finalAccessToken = jwt.sign(
+    { userId: user._id.toString(), sessionId: session._id.toString() },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: '15m' },
+  );
+
+  return {
+    accessToken: finalAccessToken,
+    refreshToken,
+    sessionId: session._id,
+  };
 };
 
 export const logout = async (sessionId) => {
   await Session.findByIdAndDelete(sessionId);
+};
+
+export const refreshAccessToken = async (refreshToken, sessionId) => {
+  const session = await Session.findById(sessionId);
+  if (!session || session.refreshToken !== refreshToken) {
+    throw createError(401, 'Invalid refresh token');
+  }
+
+  jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+  const newAccessToken = jwt.sign(
+    { userId: session.userId.toString(), sessionId: session._id.toString() },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: '15m' },
+  );
+
+  return newAccessToken;
+};
+
+export const isSessionValid = async (sessionId) => {
+  if (!sessionId) return false;
+  const session = await Session.findById(sessionId);
+  return !!session;
 };

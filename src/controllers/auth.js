@@ -1,7 +1,11 @@
 import jwt from 'jsonwebtoken';
 import createError from 'http-errors';
-import { registerUser, loginUser, logout } from '../services/auth.js';
-import { Session } from '../models/sessionModel.js';
+import {
+  registerUser,
+  loginUser,
+  logout,
+  refreshAccessToken,
+} from '../services/auth.js';
 
 const cookieOpts = {
   httpOnly: true,
@@ -61,23 +65,12 @@ export const refreshSession = async (req, res, next) => {
       throw createError(401, 'Refresh token or session missing');
     }
 
-    const session = await Session.findById(sessionId);
-    if (!session || session.refreshToken !== refreshToken) {
-      throw createError(401, 'Invalid refresh token');
-    }
-
-    jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-
-    const accessToken = jwt.sign(
-      { userId: session.userId.toString() },
-      process.env.JWT_ACCESS_SECRET,
-      { expiresIn: '15m' },
-    );
+    const newAccessToken = await refreshAccessToken(refreshToken, sessionId);
 
     res.status(200).json({
       status: 200,
       message: 'Session refreshed!',
-      data: { accessToken },
+      data: { accessToken: newAccessToken },
     });
   } catch (error) {
     res.clearCookie('refreshToken', cookieOpts);
