@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import createError from 'http-errors';
-import { isSessionValid } from '../services/auth.js';
+import { isSessionValid, getTokenVersion } from '../services/auth.js';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'accessSecret123';
 
@@ -25,9 +25,20 @@ export const authenticate = async (req, res, next) => {
       return next(createError(401, 'Not authorized'));
     }
 
+    // Перевіряємо чи сесія активна
     const isSessionActive = await isSessionValid(payload.sessionId);
     if (!isSessionActive) {
-      console.log('Session invalidated');
+      console.log('❌ Session invalidated');
+      return next(createError(401, 'Not authorized'));
+    }
+
+    // Перевіряємо версію токена
+    const currentVersion = await getTokenVersion(payload.sessionId);
+    if (payload.tokenVersion !== currentVersion) {
+      console.log('❌ Token version mismatch');
+      console.log(
+        `Token version: ${payload.tokenVersion}, Current version: ${currentVersion}`,
+      );
       return next(createError(401, 'Not authorized'));
     }
 

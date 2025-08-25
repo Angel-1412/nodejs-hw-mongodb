@@ -20,11 +20,12 @@ export const loginUser = async ({ email, password }) => {
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw createError(401, 'Invalid credentials');
 
-  const accessToken = jwt.sign(
-    { userId: user._id.toString(), sessionId: null },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '15m' },
-  );
+  // ВИДАЛИ цей зайвий токен - він не потрібен!
+  // const accessToken = jwt.sign(
+  //   { userId: user._id.toString(), sessionId: null },
+  //   process.env.JWT_ACCESS_SECRET,
+  //   { expiresIn: '15m' },
+  // );
 
   const refreshToken = jwt.sign(
     { userId: user._id.toString() },
@@ -40,16 +41,22 @@ export const loginUser = async ({ email, password }) => {
     userId: user._id,
     refreshToken,
     refreshTokenValidUntil,
+    tokenVersion: 1,
   });
 
-  const finalAccessToken = jwt.sign(
-    { userId: user._id.toString(), sessionId: session._id.toString() },
+  // Це єдиний потрібний accessToken
+  const accessToken = jwt.sign(
+    {
+      userId: user._id.toString(),
+      sessionId: session._id.toString(),
+      tokenVersion: 1,
+    },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: '15m' },
   );
 
   return {
-    accessToken: finalAccessToken,
+    accessToken,
     refreshToken,
     sessionId: session._id,
   };
@@ -67,8 +74,17 @@ export const refreshAccessToken = async (refreshToken, sessionId) => {
 
   jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
+  const newTokenVersion = (session.tokenVersion || 0) + 1;
+  await Session.findByIdAndUpdate(sessionId, {
+    tokenVersion: newTokenVersion,
+  });
+
   const newAccessToken = jwt.sign(
-    { userId: session.userId.toString(), sessionId: session._id.toString() },
+    {
+      userId: session.userId.toString(),
+      sessionId: session._id.toString(),
+      tokenVersion: newTokenVersion,
+    },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: '15m' },
   );
@@ -80,4 +96,9 @@ export const isSessionValid = async (sessionId) => {
   if (!sessionId) return false;
   const session = await Session.findById(sessionId);
   return !!session;
+};
+
+export const getTokenVersion = async (sessionId) => {
+  const session = await Session.findById(sessionId);
+  return session?.tokenVersion || 0;
 };

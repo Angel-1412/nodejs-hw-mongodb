@@ -15,6 +15,11 @@ const sessionSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    tokenVersion: {
+      type: Number,
+      default: 1,
+      required: true,
+    },
   },
   { timestamps: true },
 );
