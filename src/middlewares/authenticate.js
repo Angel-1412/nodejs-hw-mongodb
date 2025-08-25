@@ -25,7 +25,6 @@ export const authenticate = async (req, res, next) => {
       return next(createError(401, 'Not authorized'));
     }
 
-    // Перевіряємо чи сесія ще існує в базі
     const isSessionActive = await isSessionValid(payload.sessionId);
     if (!isSessionActive) {
       console.log('❌ Session invalidated');
