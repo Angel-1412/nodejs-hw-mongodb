@@ -27,7 +27,7 @@ export const authenticate = async (req, res, next) => {
 
     const isSessionActive = await isSessionValid(payload.sessionId);
     if (!isSessionActive) {
-      console.log('❌ Session invalidated');
+      console.log('Session invalidated');
       return next(createError(401, 'Not authorized'));
     }
 
