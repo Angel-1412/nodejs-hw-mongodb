@@ -14,6 +14,7 @@ import {
   createContactSchema,
   updateContactSchema,
 } from '../models/contactSchemas.js';
+import { upload } from '../utils/cloudinary.js';
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.get('/:contactId', isValidId, ctrlWrapper(getContactByIdController));
 
 router.post(
   '/',
+  upload.single('photo'),
   validateBody(createContactSchema),
   ctrlWrapper(createContactController),
 );
@@ -32,6 +34,7 @@ router.post(
 router.patch(
   '/:contactId',
   isValidId,
+  upload.single('photo'),
   validateBody(updateContactSchema),
   ctrlWrapper(updateContactByIdController),
 );

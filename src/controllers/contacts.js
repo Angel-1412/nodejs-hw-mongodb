@@ -85,10 +85,17 @@ export async function createContactController(req, res) {
     );
   }
 
-  const newContact = await createContact({
+  const contactData = {
     ...req.body,
     userId: req.user._id,
-  });
+  };
+
+  // Додаємо фото, якщо воно було завантажене
+  if (req.file) {
+    contactData.photo = req.file.path;
+  }
+
+  const newContact = await createContact(contactData);
 
   res.status(201).json({
     status: 201,
@@ -100,6 +107,11 @@ export async function createContactController(req, res) {
 export async function updateContactByIdController(req, res) {
   const { contactId } = req.params;
   const updateData = req.body;
+
+  // Додаємо фото, якщо воно було завантажене
+  if (req.file) {
+    updateData.photo = req.file.path;
+  }
 
   const updatedContact = await updateContactById(
     contactId,

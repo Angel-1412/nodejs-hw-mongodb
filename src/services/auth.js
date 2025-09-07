@@ -20,13 +20,6 @@ export const loginUser = async ({ email, password }) => {
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw createError(401, 'Invalid credentials');
 
-  // ВИДАЛИ цей зайвий токен - він не потрібен!
-  // const accessToken = jwt.sign(
-  //   { userId: user._id.toString(), sessionId: null },
-  //   process.env.JWT_ACCESS_SECRET,
-  //   { expiresIn: '15m' },
-  // );
-
   const refreshToken = jwt.sign(
     { userId: user._id.toString() },
     process.env.JWT_REFRESH_SECRET,
@@ -44,7 +37,6 @@ export const loginUser = async ({ email, password }) => {
     tokenVersion: 1,
   });
 
-  // Це єдиний потрібний accessToken
   const accessToken = jwt.sign(
     {
       userId: user._id.toString(),
@@ -101,4 +93,29 @@ export const isSessionValid = async (sessionId) => {
 export const getTokenVersion = async (sessionId) => {
   const session = await Session.findById(sessionId);
   return session?.tokenVersion || 0;
+};
+
+export const generateResetToken = (email) => {
+  return jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '5m' });
+};
+
+export const verifyResetToken = (token) => {
+  try {
+    return jwt.verify(token, process.env.JWT_SECRET);
+  } catch (error) {
+    throw createError(401, 'Token is expired or invalid.');
+  }
+};
+
+export const updateUserPassword = async (email, newPassword) => {
+  const user = await User.findOne({ email });
+  if (!user) throw createError(404, 'User not found!');
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  await user.save();
+
+  await Session.deleteMany({ userId: user._id });
+
+  return user;
 };

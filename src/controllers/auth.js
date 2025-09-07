@@ -5,7 +5,12 @@ import {
   loginUser,
   logout,
   refreshAccessToken,
+  generateResetToken,
+  verifyResetToken,
+  updateUserPassword,
 } from '../services/auth.js';
+import { User } from '../models/userModel.js';
+import { sendResetPasswordEmail } from '../utils/nodemailer.js';
 
 const cookieOpts = {
   httpOnly: true,
@@ -92,6 +97,54 @@ export const logoutController = async (req, res, next) => {
   } catch (error) {
     res.clearCookie('refreshToken', cookieOpts);
     res.clearCookie('sessionId', cookieOpts);
+    next(error);
+  }
+};
+
+export const sendResetEmailController = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw createError(404, 'User not found!');
+    }
+
+    const resetToken = generateResetToken(email);
+
+    const emailSent = await sendResetPasswordEmail(email, resetToken);
+
+    if (!emailSent) {
+      throw createError(
+        500,
+        'Failed to send the email, please try again later.',
+      );
+    }
+
+    res.status(200).json({
+      status: 200,
+      message: 'Reset password email has been successfully sent.',
+      data: {},
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPasswordController = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    const decoded = verifyResetToken(token);
+
+    await updateUserPassword(decoded.email, password);
+
+    res.status(200).json({
+      status: 200,
+      message: 'Password has been successfully reset.',
+      data: {},
+    });
+  } catch (error) {
     next(error);
   }
 };
